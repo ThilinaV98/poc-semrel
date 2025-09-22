@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.1](https://github.com/ThilinaV98/poc-semrel/compare/v2.0.0...v2.0.1) (2025-09-22)
+
+
+### 🐛 Bug Fixes
+
+* **security:** patch critical XSS vulnerability in user input ([d380582](https://github.com/ThilinaV98/poc-semrel/commit/d380582832f6a86704afb5f47c6ff968850099ff)), closes [#001](https://github.com/ThilinaV98/poc-semrel/issues/001)
+
+
+### 🔧 Chores
+
+* **release:** 2.0.1-hotfix.1 [skip ci] ([0cf0279](https://github.com/ThilinaV98/poc-semrel/commit/0cf0279227e210860c56fc0beeb9ffdb7977c590)), closes [#001](https://github.com/ThilinaV98/poc-semrel/issues/001)
+
 ## [2.0.1-hotfix.1](https://github.com/ThilinaV98/poc-semrel/compare/v2.0.0...v2.0.1-hotfix.1) (2025-09-22)
 
 
