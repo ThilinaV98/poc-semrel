@@ -139,6 +139,18 @@ jobs:
             VERSION="${{ steps.check-release-json.outputs.version }}"
             echo "🔧 Using custom version from release.json: $VERSION"
 
+            # Check if tag already exists
+            if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+              echo "⚠️ Tag v$VERSION already exists. Removing stale release.json and skipping release."
+              git config user.name github-actions
+              git config user.email github-actions@github.com
+              git rm release.json
+              git commit -m "chore: remove stale release.json [skip ci]" || echo "No release.json to remove"
+              git push origin main
+              echo "✅ Cleaned up stale release.json"
+              exit 0
+            fi
+
             # Update package.json with the new version
             npm version $VERSION --no-git-tag-version --allow-same-version
 
