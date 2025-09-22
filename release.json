@@ -1,0 +1,10 @@
+{
+  "version": "1.1.0",
+  "releaseDate": "2025-09-22",
+  "rcBuildCounter": 0,
+  "lastRCTag": "",
+  "description": "Authentication features",
+  "branch": "release/220925-auth",
+  "preparedBy": "cosmo",
+  "preparedAt": "2025-09-22T07:57:32.168Z"
+}
