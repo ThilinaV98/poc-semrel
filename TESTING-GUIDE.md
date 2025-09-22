@@ -37,7 +37,7 @@ gh --version
 ### Local Environment Setup
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/poc-semrel.git
+git clone git@github.com:ThilinaV98/poc-semrel.git
 cd poc-semrel
 
 # Install dependencies
@@ -46,6 +46,46 @@ npm install
 # Configure Git
 git config user.name "Your Name"
 git config user.email "your.email@example.com"
+```
+
+## ✔️ Pre-Test Validation
+
+### Environment Verification
+```bash
+# Verify semantic-release installation
+npx semantic-release --version
+# Expected: 23.1.1 or higher
+
+# Check configuration validity
+npx semantic-release --dry-run --no-ci 2>&1 | head -20
+# Should show: "Running semantic-release version 23.1.1"
+
+# Verify SSH authentication
+ssh -T git@github.com
+# Expected: "Hi ThilinaV98! You've successfully authenticated..."
+
+# Check current version
+node -p "require('./package.json').version"
+# Current: 1.1.0
+
+# Verify branch configuration
+cat .releaserc.json | jq '.branches[].name'
+# Expected: "main", "dev", "release/...", "hotfix/*", "feature/*"
+```
+
+### GitHub Token Setup
+```bash
+# Create Personal Access Token (if not done)
+# Go to: https://github.com/settings/tokens/new
+# Scopes needed:
+# - repo (Full control)
+# - write:packages (if publishing to GitHub Packages)
+
+# Set token for local testing
+export GITHUB_TOKEN=ghp_your_token_here
+
+# Verify token works
+gh auth status
 ```
 
 ## 🚀 Initial Setup
@@ -58,7 +98,7 @@ git add .
 git commit -m "feat: initial semantic-release setup"
 
 # Set up remote
-git remote add origin https://github.com/yourusername/poc-semrel.git
+git remote add origin git@github.com:ThilinaV98/poc-semrel.git
 git branch -M main
 git push -u origin main
 
@@ -84,8 +124,11 @@ For 'dev':
 
 ## 🧪 Testing Scenarios
 
+> **Current Version**: 1.1.0 (as per package.json)
+> **Note**: Adjust expected versions based on your current version
+
 ### Scenario 1: Feature Development (Minor Version)
-**Expected**: 1.0.0 → 1.1.0
+**Expected**: 1.1.0 → 1.2.0
 
 ```bash
 # Start from main
@@ -340,6 +383,28 @@ git push -u origin release/$(date +%d%m%y)-multi-feature
 
 ## ✅ Version Verification
 
+### Pre-Release Verification Commands
+```bash
+# Analyze commits since last release
+npx semantic-release --dry-run --debug 2>&1 | grep "Analyzing commit"
+
+# Check what would be released
+npx semantic-release --dry-run --no-ci 2>&1 | grep -A 5 "next release version"
+
+# Verify plugin loading
+npx semantic-release --dry-run --no-ci 2>&1 | grep "Loaded plugin"
+# Expected output:
+# Loaded plugin "verifyConditions"
+# Loaded plugin "analyzeCommits"
+# Loaded plugin "verifyRelease"
+# Loaded plugin "generateNotes"
+# Loaded plugin "prepare"
+# Loaded plugin "publish"
+# Loaded plugin "addChannel"
+# Loaded plugin "success"
+# Loaded plugin "fail"
+```
+
 ### Check Current Version
 ```bash
 # From package.json
@@ -445,16 +510,52 @@ npx semantic-release --dry-run --debug 2>&1 | grep "Analyzing commit"
 
 ## 🐛 Troubleshooting
 
-### Common Issues
+### Common Issues & Solutions
 
-#### 1. Permission Denied
+#### 1. Authentication Failed
+```bash
+# Error: Authentication failed for 'https://github.com/ThilinaV98/poc-semrel.git/'
+# Solution: Switch to SSH authentication
+git remote set-url origin git@github.com:ThilinaV98/poc-semrel.git
+
+# Verify SSH key is added
+ssh -T git@github.com
+# Expected: "Hi ThilinaV98! You've successfully authenticated"
+```
+
+#### 2. No GitHub Token
+```bash
+# Error: "No GitHub token specified"
+# Solution: Create and set Personal Access Token
+
+# For local testing
+export GITHUB_TOKEN=ghp_your_token_here
+
+# For CI/CD (GitHub Actions)
+# Repository Settings → Secrets → Actions → New repository secret
+# Name: GITHUB_TOKEN (usually auto-provided)
+```
+
+#### 3. Configuration Error
+```bash
+# Error: "Cannot find module './release-rules.js'"
+# Solution: Configuration has been fixed, ensure using latest .releaserc.json
+
+# Validate configuration
+npx semantic-release --dry-run --no-ci 2>&1 | grep -i error
+
+# Check for duplicate configurations
+cat .releaserc.json | jq '.'
+```
+
+#### 4. Permission Denied
 ```bash
 # Error: Permission denied to github-actions[bot]
 # Solution: Check branch protection settings
 # Ensure GITHUB_TOKEN has write permissions
 ```
 
-#### 2. No Release Created
+#### 5. No Release Created
 ```bash
 # Check commit messages
 git log --oneline -10
@@ -466,7 +567,7 @@ npx commitlint --from=HEAD~1
 npx semantic-release --dry-run --debug
 ```
 
-#### 3. Wrong Version Bump
+#### 6. Wrong Version Bump
 ```bash
 # Verify commit type
 git show --format="%s" -s HEAD
@@ -475,7 +576,7 @@ git show --format="%s" -s HEAD
 cat .releaserc.json | jq '.plugins[0][1].releaseRules'
 ```
 
-#### 4. GitHub Actions Failing
+#### 7. GitHub Actions Failing
 ```bash
 # Check logs
 gh run view --log
@@ -489,32 +590,73 @@ act -j release
 
 ## 📊 Testing Checklist
 
-### Before Testing
-- [ ] Repository initialized with main and dev branches
+### ✅ Environment Setup
+- [ ] Git version >= 2.0 (`git --version`)
+- [ ] Node.js >= 18.0 (`node --version`)
+- [ ] npm >= 9.0 (`npm --version`)
+- [ ] GitHub CLI installed (`gh --version`)
+- [ ] SSH authentication configured (`ssh -T git@github.com`)
+
+### ✅ Repository Configuration
+- [ ] Repository cloned with SSH URL
+- [ ] Remote origin set to `git@github.com:ThilinaV98/poc-semrel.git`
+- [ ] Main and dev branches created
 - [ ] Branch protection rules configured
-- [ ] Dependencies installed (`npm install`)
 - [ ] GitHub Actions enabled
-- [ ] Secrets configured (if using NPM)
+- [ ] Dependencies installed (`npm install`)
+- [ ] Semantic-release version 23.1.1+ installed
 
-### During Testing
-- [ ] Test patch version bump (fix)
-- [ ] Test minor version bump (feat)
-- [ ] Test major version bump (breaking)
-- [ ] Test custom version (release.json)
-- [ ] Test hotfix workflow
-- [ ] Test RC builds
-- [ ] Test pre-releases on dev
-- [ ] Test branch validation
-- [ ] Test commit message validation
-- [ ] Verify CHANGELOG generation
+### ✅ Authentication & Permissions
+- [ ] SSH key added to GitHub account
+- [ ] Personal Access Token created (if needed)
+- [ ] GITHUB_TOKEN environment variable set
+- [ ] Repository permissions verified
+- [ ] CI/CD secrets configured
 
-### After Testing
-- [ ] All versions incremented correctly
-- [ ] GitHub releases created
-- [ ] Tags pushed to repository
-- [ ] CHANGELOG.md updated
-- [ ] package.json version updated
-- [ ] CI/CD pipeline green
+### ✅ Configuration Validation
+- [ ] `.releaserc.json` valid (`npx semantic-release --dry-run --no-ci`)
+- [ ] No duplicate configuration errors
+- [ ] All plugins installed and loaded
+- [ ] Branch configurations correct
+- [ ] Repository URL matches (package.json and .releaserc.json)
+
+### ✅ Version Bump Testing
+- [ ] **Patch Release**: Test `fix:` commits (1.1.0 → 1.1.1)
+- [ ] **Minor Release**: Test `feat:` commits (1.1.0 → 1.2.0)
+- [ ] **Major Release**: Test breaking changes (1.1.0 → 2.0.0)
+- [ ] **Custom Version**: Test with release.json
+- [ ] **Pre-release**: Test on dev branch (1.2.0-dev.1)
+- [ ] **RC Builds**: Test release branches (1.2.0-rc.1)
+
+### ✅ Workflow Testing
+- [ ] Feature branch → dev → release → main flow
+- [ ] Hotfix → main direct flow
+- [ ] Fix branch → main flow
+- [ ] Multiple features in single release
+- [ ] Branch validation scripts working
+- [ ] Commit message validation
+
+### ✅ CI/CD Validation
+- [ ] GitHub Actions workflows trigger correctly
+- [ ] Release workflow runs on main merge
+- [ ] Branch protection workflow validates correctly
+- [ ] RC tags generated on release branches
+- [ ] Dry-run successful locally
+
+### ✅ Output Verification
+- [ ] Version incremented in package.json
+- [ ] CHANGELOG.md generated/updated
+- [ ] Git tags created and pushed
+- [ ] GitHub release created with notes
+- [ ] Commit includes [skip ci] to avoid loops
+- [ ] Release notes categorized correctly
+
+### ✅ Post-Release Validation
+- [ ] Application reports correct version (`/version` endpoint)
+- [ ] Feature flags update based on version
+- [ ] No errors in GitHub Actions logs
+- [ ] All branches synchronized correctly
+- [ ] Documentation reflects current version
 
 ## 🎯 Quick Test Commands
 
@@ -543,6 +685,52 @@ git push -u origin feature/breaking-test
 # Create release branch with v2.0.0
 ```
 
+## 🚦 Test Execution Guide
+
+### Step-by-Step Manual Test Process
+
+```bash
+# 1. Setup Environment
+export GITHUB_TOKEN=ghp_your_token_here
+cd /path/to/poc-semrel
+
+# 2. Verify Current State
+git status
+git branch
+node -p "require('./package.json').version"
+
+# 3. Run Dry-Run Test
+npx semantic-release --dry-run --no-ci
+
+# 4. Create Test Commit
+git checkout -b test/manual-$(date +%s)
+echo "test content $(date)" > test-file.txt
+git add test-file.txt
+git commit -m "test: manual testing $(date)"
+
+# 5. Validate Commit Message
+npx commitlint --from=HEAD~1
+
+# 6. Push and Monitor
+git push -u origin test/manual-$(date +%s)
+
+# 7. Check Results
+gh run list --limit 5
+gh release list --limit 5
+git tag -l | tail -5
+```
+
+### Expected Test Results
+
+| Test Type | Input | Expected Output | Validation |
+|-----------|-------|-----------------|------------|
+| Patch Release | `fix: bug fix` | 1.1.0 → 1.1.1 | Check tags |
+| Minor Release | `feat: new feature` | 1.1.0 → 1.2.0 | Check CHANGELOG |
+| Major Release | `feat!: breaking` | 1.1.0 → 2.0.0 | Check GitHub Release |
+| Pre-release | Push to `dev` | 1.2.0-dev.1 | Check pre-release tag |
+| RC Build | Push to `release/*` | 1.2.0-rc.1 | Check RC tag |
+| No Release | `chore: update` | No version change | Verify no new tag |
+
 ## 📚 Additional Resources
 
 - [Semantic Release Documentation](https://semantic-release.gitbook.io/)
@@ -551,7 +739,8 @@ git push -u origin feature/breaking-test
 - [Project README](./README.md)
 - [Local Testing Guide](./local-testing.md)
 - [Troubleshooting Guide](./troubleshooting.md)
+- [Compliance Report](./COMPLIANCE-REPORT.md)
 
 ---
 
-Last Updated: September 2025 | Version: 1.0.0
+Last Updated: September 2025 | Version: 2.0.0 | Status: Production-Ready

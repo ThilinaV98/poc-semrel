@@ -13,7 +13,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/poc-semrel.git"
+    "url": "https://github.com/ThilinaV98/poc-semrel.git"
   },
   "keywords": [
     "semantic-release",
@@ -24,14 +24,14 @@
   "author": "",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/yourusername/poc-semrel/issues"
+    "url": "https://github.com/ThilinaV98/poc-semrel/issues"
   },
-  "homepage": "https://github.com/yourusername/poc-semrel#readme",
+  "homepage": "https://github.com/ThilinaV98/poc-semrel#readme",
   "dependencies": {
     "express": "^4.18.2"
   },
   "devDependencies": {
-    "semantic-release": "^23.0.0",
+    "semantic-release": "^23.1.1",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^11.1.0",
     "@semantic-release/git": "^10.0.1",
