@@ -1,0 +1,23 @@
+{
+  "version": "X.Y.Z",
+  "releaseDate": "YYYY-MM-DD",
+  "rcBuildCounter": 0,
+  "lastRCTag": "",
+  "description": "Brief description of the release",
+  "branch": "release/DDMMYY-description",
+  "preparedBy": "developer-name",
+  "preparedAt": "ISO-8601-timestamp",
+  "notes": "This file should be created in release branches to specify the target version. It will be automatically removed after merging to main.",
+  "features": [
+    "Feature 1 description",
+    "Feature 2 description"
+  ],
+  "fixes": [
+    "Fix 1 description",
+    "Fix 2 description"
+  ],
+  "breaking": [
+    "Breaking change 1 (if any)",
+    "Breaking change 2 (if any)"
+  ]
+}

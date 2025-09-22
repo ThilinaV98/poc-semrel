@@ -1,0 +1,118 @@
+{
+  "branches": [
+    {
+      "name": "main",
+      "channel": "latest"
+    },
+    {
+      "name": "dev",
+      "channel": "dev",
+      "prerelease": "dev"
+    },
+    {
+      "name": "release/+([0-9])+([0-9])+([0-9])+([0-9])+([0-9])+([0-9])*",
+      "channel": "rc",
+      "prerelease": "rc"
+    },
+    {
+      "name": "hotfix/*",
+      "channel": "hotfix",
+      "prerelease": "hotfix"
+    },
+    {
+      "name": "feature/*",
+      "channel": "feature",
+      "prerelease": "feature"
+    }
+  ],
+  "plugins": [
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "preset": "conventionalcommits",
+        "releaseRules": [
+          { "type": "feat", "release": "minor" },
+          { "type": "fix", "release": "patch" },
+          { "type": "hotfix", "release": "patch" },
+          { "type": "perf", "release": "patch" },
+          { "type": "refactor", "release": "patch" },
+          { "type": "docs", "release": "patch" },
+          { "type": "style", "release": "patch" },
+          { "type": "test", "release": "patch" },
+          { "type": "build", "release": "patch" },
+          { "type": "ci", "release": "patch" },
+          { "type": "chore", "release": "patch" },
+          { "breaking": true, "release": "major" },
+          { "revert": true, "release": "patch" }
+        ],
+        "parserOpts": {
+          "noteKeywords": ["BREAKING CHANGE", "BREAKING CHANGES"]
+        }
+      }
+    ],
+    [
+      "@semantic-release/release-notes-generator",
+      {
+        "preset": "conventionalcommits",
+        "presetConfig": {
+          "types": [
+            { "type": "feat", "section": "✨ Features", "hidden": false },
+            { "type": "fix", "section": "🐛 Bug Fixes", "hidden": false },
+            { "type": "hotfix", "section": "🚨 Hotfixes", "hidden": false },
+            { "type": "perf", "section": "⚡ Performance", "hidden": false },
+            { "type": "refactor", "section": "♻️ Code Refactoring", "hidden": false },
+            { "type": "docs", "section": "📚 Documentation", "hidden": false },
+            { "type": "style", "section": "💄 Styling", "hidden": false },
+            { "type": "test", "section": "✅ Tests", "hidden": false },
+            { "type": "build", "section": "📦 Build System", "hidden": false },
+            { "type": "ci", "section": "👷 CI/CD", "hidden": false },
+            { "type": "chore", "section": "🔧 Chores", "hidden": false },
+            { "type": "revert", "section": "⏪ Reverts", "hidden": false }
+          ]
+        }
+      }
+    ],
+    [
+      "@semantic-release/changelog",
+      {
+        "changelogFile": "CHANGELOG.md",
+        "changelogTitle": "# Changelog\n\nAll notable changes to this project will be documented in this file."
+      }
+    ],
+    [
+      "@semantic-release/npm",
+      {
+        "npmPublish": false
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": [
+          "CHANGELOG.md",
+          "package.json",
+          "package-lock.json"
+        ],
+        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
+    [
+      "@semantic-release/github",
+      {
+        "successComment": "🎉 This ${issue.pull_request ? 'PR is included' : 'issue has been resolved'} in version ${nextRelease.version} 🎉\n\nThe release is available on [GitHub release](${releases[0].url})",
+        "labels": ["released"],
+        "releasedLabels": ["released on @{channel}"]
+      }
+    ]
+  ],
+  "tagFormat": "v${version}",
+  "dryRun": false,
+  "ci": true,
+  "debug": false,
+  "analyzeCommits": {
+    "releaseRules": "./release-rules.js",
+    "parserOpts": {
+      "noteKeywords": ["BREAKING CHANGE", "BREAKING CHANGES", "BREAKING"]
+    }
+  }
+}

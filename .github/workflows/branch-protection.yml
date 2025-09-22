@@ -1,0 +1,220 @@
+name: Branch Protection Rules
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches-ignore:
+      - main
+      - dev
+
+jobs:
+  validate-pr:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate PR source and target branches
+        run: |
+          SOURCE_BRANCH="${{ github.head_ref }}"
+          TARGET_BRANCH="${{ github.base_ref }}"
+
+          echo "🔍 Checking PR from $SOURCE_BRANCH to $TARGET_BRANCH"
+
+          # Function to check if merge is allowed
+          validate_merge() {
+            local source=$1
+            local target=$2
+
+            # Rules for main branch
+            if [[ "$target" == "main" ]]; then
+              if [[ "$source" =~ ^release/ ]] || \
+                 [[ "$source" =~ ^hotfix/ ]] || \
+                 [[ "$source" =~ ^fix/ ]]; then
+                echo "✅ Valid merge: $source → $target"
+                return 0
+              else
+                echo "❌ Invalid merge: $source → $target"
+                echo "Only release/*, hotfix/*, and fix/* branches can merge to main"
+                return 1
+              fi
+            fi
+
+            # Rules for dev branch
+            if [[ "$target" == "dev" ]]; then
+              if [[ "$source" =~ ^feature/ ]] || \
+                 [[ "$source" =~ ^fix/ ]] || \
+                 [[ "$source" =~ ^refact/ ]]; then
+                echo "✅ Valid merge: $source → $target"
+                return 0
+              else
+                echo "❌ Invalid merge: $source → $target"
+                echo "Only feature/*, fix/*, and refact/* branches can merge to dev"
+                return 1
+              fi
+            fi
+
+            # Rules for release branches
+            if [[ "$target" =~ ^release/ ]]; then
+              if [[ "$source" =~ ^feature/ ]] || \
+                 [[ "$source" =~ ^fix/ ]]; then
+                echo "✅ Valid merge: $source → $target"
+                return 0
+              else
+                echo "❌ Invalid merge: $source → $target"
+                echo "Only feature/* and fix/* branches can merge to release/*"
+                return 1
+              fi
+            fi
+
+            # Default: allow merge for other cases
+            echo "ℹ️ No specific rules for $source → $target, allowing merge"
+            return 0
+          }
+
+          # Validate the merge
+          if ! validate_merge "$SOURCE_BRANCH" "$TARGET_BRANCH"; then
+            exit 1
+          fi
+
+      - name: Check commit message format
+        run: |
+          # Get commits in this PR
+          COMMITS=$(git log --format="%s" origin/${{ github.base_ref }}..HEAD)
+
+          echo "📝 Checking commit messages..."
+
+          # Check each commit
+          INVALID_COMMITS=0
+          while IFS= read -r commit_msg; do
+            if [[ -z "$commit_msg" ]]; then
+              continue
+            fi
+
+            # Check if commit follows conventional format
+            if [[ "$commit_msg" =~ ^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|hotfix)(\(.+\))?: .+ ]] || \
+               [[ "$commit_msg" =~ ^Merge ]]; then
+              echo "✅ Valid commit: $commit_msg"
+            else
+              echo "❌ Invalid commit format: $commit_msg"
+              INVALID_COMMITS=$((INVALID_COMMITS + 1))
+            fi
+          done <<< "$COMMITS"
+
+          if [[ $INVALID_COMMITS -gt 0 ]]; then
+            echo ""
+            echo "❌ Found $INVALID_COMMITS invalid commit message(s)"
+            echo ""
+            echo "Commit messages must follow the Conventional Commits format:"
+            echo "  <type>(<scope>): <subject>"
+            echo ""
+            echo "Valid types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert, hotfix"
+            echo ""
+            echo "Examples:"
+            echo "  feat(api): add user authentication endpoint"
+            echo "  fix: resolve memory leak in data processor"
+            echo "  docs: update README with installation instructions"
+            exit 1
+          fi
+
+          echo "✅ All commit messages are valid"
+
+  check-release-json:
+    runs-on: ubuntu-latest
+    if: contains(github.ref, 'release/')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate release.json for release branches
+        run: |
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+
+          if [[ "$BRANCH_NAME" =~ ^release/ ]]; then
+            echo "📦 Checking release.json for $BRANCH_NAME"
+
+            if [[ ! -f "release.json" ]]; then
+              echo "⚠️ Warning: release.json not found in release branch"
+              echo "Creating template release.json..."
+
+              # Extract date from branch name
+              DATE=$(echo $BRANCH_NAME | grep -oE '[0-9]{6}' || echo "$(date +%d%m%y)")
+
+              # Create template release.json
+              cat > release.json <<EOF
+          {
+            "version": "X.Y.Z",
+            "releaseDate": "$(date +%Y-%m-%d)",
+            "rcBuildCounter": 0,
+            "lastRCTag": "",
+            "notes": "Please update the version number before merging to main"
+          }
+          EOF
+
+              echo "📝 Template release.json created. Please update the version before merging."
+            else
+              # Validate release.json structure
+              if ! jq -e '.version' release.json > /dev/null 2>&1; then
+                echo "❌ Invalid release.json: missing 'version' field"
+                exit 1
+              fi
+
+              VERSION=$(jq -r '.version' release.json)
+              if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                echo "❌ Invalid version format: $VERSION"
+                echo "Version must follow semantic versioning (X.Y.Z)"
+                exit 1
+              fi
+
+              echo "✅ Valid release.json with version: $VERSION"
+            fi
+          fi
+
+  enforce-branch-naming:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Check branch naming convention
+        run: |
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+
+          echo "🏷️ Validating branch name: $BRANCH_NAME"
+
+          # Validate branch naming patterns
+          if [[ "$BRANCH_NAME" =~ ^(main|dev)$ ]]; then
+            echo "✅ Protected branch: $BRANCH_NAME"
+          elif [[ "$BRANCH_NAME" =~ ^feature/[a-z0-9-]+$ ]]; then
+            echo "✅ Valid feature branch: $BRANCH_NAME"
+          elif [[ "$BRANCH_NAME" =~ ^release/[0-9]{6}(-[0-9]+)?-[a-z0-9-]+$ ]]; then
+            echo "✅ Valid release branch: $BRANCH_NAME"
+          elif [[ "$BRANCH_NAME" =~ ^hotfix/[a-z0-9-]+-[a-z0-9-]+$ ]]; then
+            echo "✅ Valid hotfix branch: $BRANCH_NAME"
+          elif [[ "$BRANCH_NAME" =~ ^fix/[a-z0-9-]+-[a-z0-9-]+$ ]]; then
+            echo "✅ Valid fix branch: $BRANCH_NAME"
+          elif [[ "$BRANCH_NAME" =~ ^refact/[a-z0-9-]+-[a-z0-9-]+$ ]]; then
+            echo "✅ Valid refactor branch: $BRANCH_NAME"
+          else
+            echo "❌ Invalid branch name: $BRANCH_NAME"
+            echo ""
+            echo "Branch naming conventions:"
+            echo "  - feature/ticket-id-description"
+            echo "  - release/DDMMYY[-n]-description"
+            echo "  - hotfix/ticket-id-description"
+            echo "  - fix/ticket-id-description"
+            echo "  - refact/component-description"
+            echo ""
+            echo "Examples:"
+            echo "  - feature/add-user-auth"
+            echo "  - release/091025-payments"
+            echo "  - hotfix/fix-123-critical-bug"
+            echo "  - fix/bug-456-validation"
+            echo "  - refact/auth-module"
+            exit 1
+          fi

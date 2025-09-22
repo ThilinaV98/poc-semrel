@@ -1,0 +1,216 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - 'release/**'
+      - 'hotfix/**'
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  validate-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate branch name
+        run: |
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          echo "Current branch: $BRANCH_NAME"
+
+          # Define valid branch patterns
+          if [[ "$BRANCH_NAME" =~ ^(main|dev)$ ]] || \
+             [[ "$BRANCH_NAME" =~ ^feature/.+ ]] || \
+             [[ "$BRANCH_NAME" =~ ^release/[0-9]{6}(-[0-9]+)?-.+ ]] || \
+             [[ "$BRANCH_NAME" =~ ^hotfix/.+ ]] || \
+             [[ "$BRANCH_NAME" =~ ^fix/.+ ]] || \
+             [[ "$BRANCH_NAME" =~ ^refact/.+ ]]; then
+            echo "✅ Valid branch name: $BRANCH_NAME"
+          else
+            echo "❌ Invalid branch name: $BRANCH_NAME"
+            echo "Branch name must follow the pattern:"
+            echo "  - main, dev"
+            echo "  - feature/*, release/DDMMYY[-n]-description, hotfix/*, fix/*, refact/*"
+            exit 1
+          fi
+
+  release:
+    needs: validate-branch
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check for release.json
+        id: check-release-json
+        run: |
+          if [[ -f "release.json" ]]; then
+            echo "has_release_json=true" >> $GITHUB_OUTPUT
+            echo "version=$(jq -r .version release.json)" >> $GITHUB_OUTPUT
+            echo "📦 Found release.json with version: $(jq -r .version release.json)"
+          else
+            echo "has_release_json=false" >> $GITHUB_OUTPUT
+            echo "📝 No release.json found, will use semantic-release defaults"
+          fi
+
+      - name: Determine Release Type
+        id: release-type
+        run: |
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+
+          if [[ "$BRANCH_NAME" == "main" ]]; then
+            if [[ "${{ steps.check-release-json.outputs.has_release_json }}" == "true" ]]; then
+              echo "release_type=release-json" >> $GITHUB_OUTPUT
+              echo "🎯 Release type: Custom version from release.json"
+            elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              SOURCE_BRANCH="${{ github.head_ref }}"
+              if [[ "$SOURCE_BRANCH" =~ ^hotfix/ ]]; then
+                echo "release_type=hotfix" >> $GITHUB_OUTPUT
+                echo "🚨 Release type: Hotfix (patch)"
+              elif [[ "$SOURCE_BRANCH" =~ ^fix/ ]]; then
+                echo "release_type=fix" >> $GITHUB_OUTPUT
+                echo "🐛 Release type: Fix (patch)"
+              elif [[ "$SOURCE_BRANCH" =~ ^release/ ]]; then
+                echo "release_type=release-merge" >> $GITHUB_OUTPUT
+                echo "📦 Release type: Release branch merge"
+              else
+                echo "release_type=standard" >> $GITHUB_OUTPUT
+                echo "📄 Release type: Standard semantic-release"
+              fi
+            else
+              echo "release_type=standard" >> $GITHUB_OUTPUT
+              echo "📄 Release type: Standard semantic-release"
+            fi
+          elif [[ "$BRANCH_NAME" =~ ^release/ ]]; then
+            echo "release_type=rc" >> $GITHUB_OUTPUT
+            echo "🔄 Release type: Release Candidate"
+          else
+            echo "release_type=prerelease" >> $GITHUB_OUTPUT
+            echo "🔮 Release type: Pre-release"
+          fi
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build application
+        run: |
+          echo "Building application..."
+          if [[ -d "src" ]]; then
+            echo "✅ Source files found"
+          else
+            echo "⚠️ No source files yet"
+          fi
+
+      - name: Semantic Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          # Handle custom version from release.json
+          if [[ "${{ steps.release-type.outputs.release_type }}" == "release-json" ]]; then
+            VERSION="${{ steps.check-release-json.outputs.version }}"
+            echo "🔧 Using custom version from release.json: $VERSION"
+
+            # Update package.json with the new version
+            npm version $VERSION --no-git-tag-version --allow-same-version
+
+            # Create git tag and push
+            git config user.name github-actions
+            git config user.email github-actions@github.com
+            git add package.json package-lock.json
+            git commit -m "chore(release): $VERSION [skip ci]" || echo "No changes to commit"
+            git tag -a "v$VERSION" -m "Release version $VERSION"
+            git push origin main --follow-tags
+
+            # Create GitHub release
+            gh release create "v$VERSION" \
+              --title "Release v$VERSION" \
+              --notes "Release version $VERSION from release.json" \
+              --target main
+          else
+            # Use semantic-release for automatic versioning
+            npx semantic-release
+          fi
+
+      - name: Generate RC tag for release branches
+        if: contains(github.ref, 'release/')
+        run: |
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          DATE=$(echo $BRANCH_NAME | grep -oE '[0-9]{6}')
+          TIMESTAMP=$(date +%s)
+
+          # Get or increment RC counter
+          if [[ -f "release.json" ]]; then
+            RC_COUNTER=$(jq -r '.rcBuildCounter // 1' release.json)
+            RC_COUNTER=$((RC_COUNTER + 1))
+
+            # Update release.json
+            jq --arg counter "$RC_COUNTER" --arg tag "v${VERSION}-rc-${DATE}.${TIMESTAMP}" \
+              '.rcBuildCounter = ($counter | tonumber) | .lastRCTag = $tag' release.json > release.json.tmp
+            mv release.json.tmp release.json
+          else
+            RC_COUNTER=1
+            VERSION=$(node -p "require('./package.json').version")
+            echo "{\"rcBuildCounter\": 1, \"lastRCTag\": \"v${VERSION}-rc-${DATE}.${TIMESTAMP}\"}" > release.json
+          fi
+
+          # Create RC tag
+          RC_TAG="v${VERSION}-rc-${DATE}.${TIMESTAMP}"
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add release.json
+          git commit -m "chore: update RC build counter [skip ci]" || echo "No changes"
+          git tag -a "$RC_TAG" -m "Release Candidate $RC_COUNTER for $BRANCH_NAME"
+          git push origin "$BRANCH_NAME" --follow-tags
+
+          echo "🏷️ Created RC tag: $RC_TAG"
+
+  cleanup-release-json:
+    runs-on: ubuntu-latest
+    needs: release
+    if: github.ref == 'refs/heads/main' && success()
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Remove release.json after successful merge to main
+        run: |
+          if [[ -f "release.json" ]]; then
+            git config user.name github-actions
+            git config user.email github-actions@github.com
+            git rm release.json
+            git commit -m "chore: cleanup release.json after merge [skip ci]"
+            git push origin main
+            echo "🧹 Cleaned up release.json"
+          fi
