@@ -66,7 +66,7 @@ ssh -T git@github.com
 
 # Check current version
 node -p "require('./package.json').version"
-# Current: 1.1.0
+# Current: 2.0.1
 
 # Verify branch configuration
 cat .releaserc.json | jq '.branches[].name'
@@ -124,11 +124,11 @@ For 'dev':
 
 ## 🧪 Testing Scenarios
 
-> **Current Version**: 1.1.0 (as per package.json)
+> **Current Version**: 2.0.1 (as per package.json)
 > **Note**: Adjust expected versions based on your current version
 
 ### Scenario 1: Feature Development (Minor Version)
-**Expected**: 1.1.0 → 1.2.0
+**Expected**: 2.0.1 → 2.1.0
 
 ```bash
 # Start from main
@@ -444,6 +444,42 @@ gh release view v1.1.0
 # Repository → Releases
 ```
 
+## 🎯 Simplified Workflow Testing
+
+### Testing with the Simplified GitHub Actions
+
+The workflow has been simplified to use npm scripts directly:
+
+```yaml
+# The new workflow simply runs:
+- npm ci                    # Install dependencies
+- npm test                 # Run tests
+- npm run semantic-release # Handle all versioning
+```
+
+### Local Testing Before Push
+
+```bash
+# 1. Dry run to see what will happen
+npm run semantic-release:dry-run
+
+# 2. Check what commits will be analyzed
+npx semantic-release --dry-run --debug 2>&1 | grep "Analyzing commit"
+
+# 3. Verify next version
+npx semantic-release --dry-run 2>&1 | grep "next release version"
+```
+
+### Workflow Behavior by Branch
+
+| Branch | Trigger | Action | Result |
+|--------|---------|--------|--------|
+| `main` | Push/PR merge | Full release | New version tag |
+| `dev` | Push | Pre-release | `x.y.z-dev.n` tag |
+| `release/*` | Push | RC build | `x.y.z-rc.n` tag |
+| `hotfix/*` | Push | Pre-release | `x.y.z-hotfix.n` tag |
+| `feature/*` | Push | Pre-release | `x.y.z-feature.n` tag |
+
 ## 🔄 GitHub Actions Testing
 
 ### Trigger Workflow Manually
@@ -509,6 +545,27 @@ npx semantic-release --dry-run --debug 2>&1 | grep "Analyzing commit"
 ```
 
 ## 🐛 Troubleshooting
+
+### Simplified Workflow Issues
+
+#### Workflow Not Running Semantic Release
+```bash
+# Error: semantic-release command not found
+# Solution: Ensure semantic-release is in devDependencies
+npm install --save-dev semantic-release
+
+# Error: No configuration found
+# Solution: Ensure .releaserc.json exists
+ls -la .releaserc.json
+```
+
+#### GitHub Token Issues
+```bash
+# Error: GITHUB_TOKEN not available
+# Solution: Token is auto-provided in GitHub Actions
+# For local testing:
+export GITHUB_TOKEN=ghp_your_token_here
+```
 
 ### Common Issues & Solutions
 
@@ -687,7 +744,7 @@ git push -u origin feature/breaking-test
 
 ## 🚦 Test Execution Guide
 
-### Step-by-Step Manual Test Process
+### Step-by-Step Manual Test Process (Simplified Workflow)
 
 ```bash
 # 1. Setup Environment
@@ -699,8 +756,8 @@ git status
 git branch
 node -p "require('./package.json').version"
 
-# 3. Run Dry-Run Test
-npx semantic-release --dry-run --no-ci
+# 3. Test Locally First
+npm run semantic-release:dry-run
 
 # 4. Create Test Commit
 git checkout -b test/manual-$(date +%s)
@@ -708,27 +765,42 @@ echo "test content $(date)" > test-file.txt
 git add test-file.txt
 git commit -m "test: manual testing $(date)"
 
-# 5. Validate Commit Message
-npx commitlint --from=HEAD~1
+# 5. Test What Will Happen
+npm run semantic-release:dry-run
 
-# 6. Push and Monitor
+# 6. Push to Trigger Workflow
 git push -u origin test/manual-$(date +%s)
 
-# 7. Check Results
+# 7. Monitor GitHub Actions
 gh run list --limit 5
+gh run watch  # Watch the current run
+
+# 8. Verify Results
 gh release list --limit 5
+git fetch --tags
 git tag -l | tail -5
+```
+
+### Simplified Workflow Commands
+
+```bash
+# All release logic is now in npm scripts:
+npm run semantic-release          # Run release (CI/CD)
+npm run semantic-release:dry-run  # Test locally
+
+# The GitHub workflow just runs:
+npm ci && npm test && npm run semantic-release
 ```
 
 ### Expected Test Results
 
 | Test Type | Input | Expected Output | Validation |
 |-----------|-------|-----------------|------------|
-| Patch Release | `fix: bug fix` | 1.1.0 → 1.1.1 | Check tags |
-| Minor Release | `feat: new feature` | 1.1.0 → 1.2.0 | Check CHANGELOG |
-| Major Release | `feat!: breaking` | 1.1.0 → 2.0.0 | Check GitHub Release |
-| Pre-release | Push to `dev` | 1.2.0-dev.1 | Check pre-release tag |
-| RC Build | Push to `release/*` | 1.2.0-rc.1 | Check RC tag |
+| Patch Release | `fix: bug fix` | 2.0.1 → 2.0.2 | Check tags |
+| Minor Release | `feat: new feature` | 2.0.1 → 2.1.0 | Check CHANGELOG |
+| Major Release | `feat!: breaking` | 2.0.1 → 3.0.0 | Check GitHub Release |
+| Pre-release | Push to `dev` | 2.1.0-dev.1 | Check pre-release tag |
+| RC Build | Push to `release/*` | 2.1.0-rc.1 | Check RC tag |
 | No Release | `chore: update` | No version change | Verify no new tag |
 
 ## 📚 Additional Resources
@@ -743,4 +815,4 @@ git tag -l | tail -5
 
 ---
 
-Last Updated: September 2025 | Version: 2.0.0 | Status: Production-Ready
+Last Updated: September 2025 | Version: 3.0.0 | Status: Production-Ready with Simplified Workflow
