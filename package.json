@@ -1,6 +1,6 @@
 {
   "name": "poc-semrel",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Proof of concept for semantic-release with custom branching strategy",
   "main": "src/index.js",
   "scripts": {
